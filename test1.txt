@@ -1,0 +1,55 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+
+#define SYS_MY_GET_PHYSICAL_ADDRESSES 548
+
+struct va_pa_struct{
+	unsigned long va;
+	unsigned long pa;
+};
+
+unsigned long my_get_physical_addresses(void *va){
+
+	struct va_pa_struct data;
+	data.va = (unsigned long)va;
+	data.pa = 0;
+	long status = status = syscall(SYS_MY_GET_PHYSICAL_ADDRESSES, &data);
+	if (status !=0){
+		return 0;
+	}
+	return data.pa;
+}
+
+int main(void){
+
+	unsigned long length = 4*4096;
+
+	//malloc
+	void *addr = malloc(length);
+	if (addr == NULL){
+		perror("malloc");
+		return 0;
+	}
+
+	printf("malloc() returned address = %p\n\n",addr);
+	printf("Check VA->PA before access:\n");
+
+	for (size_t i =0; i<length; i+=4096){
+		unsigned long pa = my_get_physical_addresses((void *)addr + i);
+		printf("VA: %p -> PA: %p\n", (char *)addr + i , (void *)pa);
+	}
+
+	printf("\nTouching memory (write 1 byte per page)...\n");
+	for (size_t i=0; i<length; i+=4096){
+		((char *)addr)[i] = 42;
+	}
+	printf("\n Check VA -> PA after access:\n");
+	for (size_t i=0; i< length; i+=4096){
+		unsigned long pa = my_get_physical_addresses((void *)addr +i);
+		printf("Va: %p -> PA: %p\n", (char *)addr +i, (void *)pa);
+	}
+	free(addr);
+	return 0;
+}
